@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
 type Router struct {
-	route map[string]http.HandlerFunc
+	routeEvent string
+	route      map[string]http.HandlerFunc
 }
 
 func New() *Router {
@@ -16,8 +18,16 @@ func New() *Router {
 	}
 }
 
+func GetURL(path string) string {
+	if strings.Contains(path, ":") {
+		return strings.Split(path, ":")[0]
+	}
+
+	return path
+}
+
 func (r *Router) MyHandler(path string, handler http.HandlerFunc) {
-	r.route[path] = handler
+	r.route[GetURL(path)], r.routeEvent = handler, path
 }
 
 func Req(w http.ResponseWriter, r *http.Request) {
@@ -32,24 +42,35 @@ func Params(r *http.Request) map[string]string {
 
 	r.Context().Value("params")
 
-	params["top"] = "top"
-
 	return params
 }
 
-func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	if fn, ok := r.route[req.URL.Path]; ok {
-		ctx := context.WithValue(req.Context(), "params", "janko")
-		fn(w, req.WithContext(ctx))
+func DefaultURL(dynamicURL, reqURL string) string {
+	dynamicURL = GetURL(dynamicURL)
+
+	if strings.HasPrefix(reqURL, dynamicURL) {
+		return dynamicURL
 	}
 
-	fmt.Println("ne postoji")
+	return ""
+}
+
+func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	ourHandler := DefaultURL(r.routeEvent, req.URL.Path)
+
+	if fn, ok := r.route[ourHandler]; ok {
+		ctx := context.WithValue(req.Context(), "params", r.routeEvent)
+		fn(w, req.WithContext(ctx))
+		return
+	}
+
+	http.NotFound(w, req)
 }
 
 func main() {
 	router := New()
 
-	router.MyHandler("/user", Req)
+	router.MyHandler("/user/:id", Req)
 
 	http.ListenAndServe(":5000", router)
 }
