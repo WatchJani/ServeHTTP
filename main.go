@@ -33,9 +33,11 @@ func (r *Router) MyHandler(path string, handler http.HandlerFunc) {
 }
 
 func Req(w http.ResponseWriter, r *http.Request) {
-	params := Params(r)
+	w.WriteHeader(http.StatusAccepted)
 
-	fmt.Println(params["id"])
+	params := Params(r)
+	w.Write([]byte(params["id"]))
+	w.Write([]byte(params["color"]))
 }
 
 func Params(r *http.Request) map[string]string {
@@ -44,10 +46,6 @@ func Params(r *http.Request) map[string]string {
 	url := strings.Join([]string{r.Context().Value("params").(string)[1:], r.URL.Path}, "")
 
 	sliceURL := strings.Split(url, "/")
-
-	// fmt.Println(sliceURL[:4])
-	// fmt.Println(sliceURL)
-	// fmt.Println(len(sliceURL))
 
 	for index := 0; index < len(sliceURL)/2; index++ {
 		if sliceURL[index][0] == ':' {
@@ -58,10 +56,11 @@ func Params(r *http.Request) map[string]string {
 	return params
 }
 
+// bug
 func DefaultURL(dynamicURL, reqURL string) string {
 	dynamicURL = GetURL(dynamicURL)
 
-	if strings.HasPrefix(reqURL, dynamicURL) {
+	if strings.HasPrefix(reqURL, dynamicURL) && strings.Contains(dynamicURL, ":") || dynamicURL == reqURL {
 		return dynamicURL
 	}
 
@@ -70,6 +69,8 @@ func DefaultURL(dynamicURL, reqURL string) string {
 
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	ourHandler := DefaultURL(r.routeEvent, req.URL.Path)
+
+	fmt.Println(ourHandler)
 
 	if fn, ok := r.route[ourHandler]; ok {
 		ctx := context.WithValue(req.Context(), "params", r.routeEvent)
@@ -83,7 +84,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 func main() {
 	router := New()
 
-	router.MyHandler("/user/:id/team/:color", Req)
+	router.MyHandler("/user", Req)
 
 	http.ListenAndServe(":5000", router)
 }
